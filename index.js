@@ -6,6 +6,10 @@ app.use(cookies());
 const verifyToken = require("./tokens/verifyToken");
 const generateToken = require("./tokens/generateToken");
 require("dotenv").config();
+const connectDatabase = require("./connection/db");
+const USER_MODEL = require("./models/User");
+const { encrytPassword, verifyPassword } = require("./functions/encryption");
+const { sendLoginOtp } = require("./functions/otp");
 
 app.get("/public", (req, res) => {
   try {
@@ -16,36 +20,16 @@ app.get("/public", (req, res) => {
   }
 });
 
-app.post("/login", (req, res) => {
-  try {
-    console.log(req.body);
-    let userid = req.body.userid;
-
-    if (req.body.password === 12345) {
-      const token = generateToken(userid);
-      console.log(token);
-      res.cookie("web_tk", token); // cookie set code
-      return res.json({ success: true, message: "Cookie generate success" });
-    } else {
-      return res
-        .status(400)
-        .json({ success: false, error: "Incorrect credentials" });
-    }
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
-
 const testMiddleWareFunction = (req, res, next) => {
-  if (verifyToken(req.cookies.web_tk)) {
-    const userinfo = verifyToken(req.cookies.web_tk);
+  if (verifyToken(req.cookies.ashu_tk)) {
+    const userinfo = verifyToken(req.cookies.ashu_tk);
     console.log(userinfo);
     next();
   } else {
     return res.status(400).json({ success: false, error: "UNAUTHORIZED" });
   }
 };
-app.get("/profile", testMiddleWareFunction, (req, res) => {
+app.get("/notifications", testMiddleWareFunction, (req, res) => {
   try {
     return res.json({ success: true, message: "hello this is your profile" });
   } catch (error) {
@@ -77,6 +61,79 @@ app.get("/test", testMiddleWareFunction, (req, res) => {
   }
 });
 
+app.post("/signup", async (req, res) => {
+  try {
+    const checkuser = await USER_MODEL.findOne({
+      email: req.body.email.toLowerCase(),
+    });
+    if (checkuser) {
+      return res
+        .status(400)
+        .json({ success: false, error: "User already registered" });
+    }
+    const newUser = new USER_MODEL({
+      email: req.body.email,
+      password: await encrytPassword(req.body.password),
+      name: req.body.name,
+      dob: req.body.dob,
+      phonenumber: req.body.phonenumber,
+      isUnder18: req.body.isUnder18,
+    });
+    await newUser.save();
+    return res.json({ success: true, message: "Signed up success" });
+  } catch (error) {
+    console.log(error);
+    return res.status(400).json({ success: false, error: error.message });
+  }
+});
+// app.post("/login", (req, res) => {
+//   try {
+//     console.log(req.body);
+//     let userid = req.body.userid;
+//     if (req.body.password === "backendstorepassword") {
+//       const token = generateToken(userid);
+//       console.log(token);
+//       res.cookie("ashu_tk", token); // cookie set code
+//       return res.json({ success: true, message: "Cookie generate success" });
+//     } else {
+//       return res
+//         .status(400)
+//         .json({ success: false, error: "Incorrect credentials" });
+//     }
+//   } catch (error) {
+//     res.status(400).json({ success: false, error: error.message });
+//   }
+// });
+
+app.post("/login", async (req, res) => {
+  try {
+    let email = req.body.useremail;
+    let inputpassword = req.body.userpassword;
+    const checkUser = await USER_MODEL.findOne({ email: email });
+    if (!checkUser) {
+      return res
+        .status(400)
+        .json({ success: false, error: "User not found, please signup first" });
+    }
+    let originalpassword = checkUser.password;
+
+    if (await verifyPassword(inputpassword, originalpassword)) {
+      sendLoginOtp(`+91${checkUser.phonenumber}`);
+      // here we will do 2fa processs which we will send otp to the logged in user
+      // const token = generateToken(checkUser._id);
+      // res.cookie("auth_tk", token);
+      // return res.json({ success: true, message: "Logged in success" });
+    } else {
+      return res
+        .status(400)
+        .json({ success: false, error: "Incorrect password" });
+    }
+  } catch (error) {
+    console.log(error);
+    return res.status(400).json({ success: false, error: error.message });
+  }
+});
+connectDatabase();
 app.listen(5000, () => {
   console.log("Server is running at port 5000");
 });
