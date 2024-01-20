@@ -48,4 +48,24 @@ const sendLoginOtp = (userphone) => {
     });
 };
 
-module.exports = { sendLoginOtp };
+const verifyOtp = async (phonenum, code) => {
+  try {
+    const verification_check = await client.verify
+      .services(TWILIO_SERVICE_ID)
+      .verificationChecks.create({
+        to: phonenum,
+        code: code,
+      });
+    console.log(verification_check.status);
+    if (verification_check.status === "approved") {
+      return true;
+    } else {
+      return false;
+    }
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
+module.exports = { sendLoginOtp, verifyOtp };

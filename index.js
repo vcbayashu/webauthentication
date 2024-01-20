@@ -9,7 +9,7 @@ require("dotenv").config();
 const connectDatabase = require("./connection/db");
 const USER_MODEL = require("./models/User");
 const { encrytPassword, verifyPassword } = require("./functions/encryption");
-const { sendLoginOtp } = require("./functions/otp");
+const { sendLoginOtp, verifyOtp } = require("./functions/otp");
 
 app.get("/public", (req, res) => {
   try {
@@ -20,24 +20,31 @@ app.get("/public", (req, res) => {
   }
 });
 
-const testMiddleWareFunction = (req, res, next) => {
-  if (verifyToken(req.cookies.ashu_tk)) {
-    const userinfo = verifyToken(req.cookies.ashu_tk);
-    console.log(userinfo);
+const checkIfUserLoggedIn = (req, res, next) => {
+  if (verifyToken(req.cookies.auth_tk)) {
+    const userinfo = verifyToken(req.cookies.auth_tk);
+    req.userid = userinfo.id;
     next();
   } else {
     return res.status(400).json({ success: false, error: "UNAUTHORIZED" });
   }
 };
-app.get("/notifications", testMiddleWareFunction, (req, res) => {
+app.get("/savedposts", checkIfUserLoggedIn, (req, res) => {
   try {
-    return res.json({ success: true, message: "hello this is your profile" });
+    let loggedId = req.userid;
+    let notifications = {
+      "65aaaa10b10198488ee3434": "Notificaiton 1",
+      "65aaaa10b10198488e4546": "Notification 22",
+      "65aaaa10b10198488ee3e12f": "Notification of logged in user",
+      "65abff80c224b1a6dbdcf629": "Notification of new user",
+    };
+    return res.json({ success: true, message: notifications[loggedId] });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
   }
 });
 
-app.get("/youtubehistory", testMiddleWareFunction, (req, res) => {
+app.get("/youtubehistory", checkIfUserLoggedIn, (req, res) => {
   try {
     return res.json({ success: true, message: "hello this is your friends" });
   } catch (error) {
@@ -45,7 +52,17 @@ app.get("/youtubehistory", testMiddleWareFunction, (req, res) => {
   }
 });
 
-app.get("/chats", testMiddleWareFunction, (req, res) => {
+app.get("/getloggedinuser", checkIfUserLoggedIn, async (req, res) => {
+  try {
+    const loggedInuser = await USER_MODEL.findOne({ _id: req.userid });
+
+    return res.json({ success: true, loggedInuser });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/chats", checkIfUserLoggedIn, (req, res) => {
   try {
     return res.json({ success: true, message: "hello this is your chats" });
   } catch (error) {
@@ -53,7 +70,7 @@ app.get("/chats", testMiddleWareFunction, (req, res) => {
   }
 });
 
-app.get("/test", testMiddleWareFunction, (req, res) => {
+app.get("/test", checkIfUserLoggedIn, (req, res) => {
   try {
     return res.json({ success: true, message: "Hello from the middleware" });
   } catch (error) {
@@ -122,7 +139,7 @@ app.post("/login", async (req, res) => {
       // here we will do 2fa processs which we will send otp to the logged in user
       // const token = generateToken(checkUser._id);
       // res.cookie("auth_tk", token);
-      // return res.json({ success: true, message: "Logged in success" });
+      return res.json({ success: true, message: "Please enter OTP to login" });
     } else {
       return res
         .status(400)
@@ -133,6 +150,40 @@ app.post("/login", async (req, res) => {
     return res.status(400).json({ success: false, error: error.message });
   }
 });
+
+//first factor
+app.post("/mfaverify", async (req, res) => {
+  try {
+    let email = req.body.useremail;
+    let inputpassword = req.body.userpassword;
+    let code = req.body.code;
+    const checkUser = await USER_MODEL.findOne({ email: email });
+    if (!checkUser) {
+      return res
+        .status(400)
+        .json({ success: false, error: "User not found, please signup first" });
+    }
+    let originalpassword = checkUser.password;
+
+    if (
+      (await verifyPassword(inputpassword, originalpassword)) &&
+      (await verifyOtp(`+91${checkUser.phonenumber}`, code))
+    ) {
+      const token = generateToken(checkUser._id);
+      res.cookie("auth_tk", token);
+      return res.json({ success: true, message: "Logged in success" });
+    } else {
+      return res
+        .status(400)
+        .json({ success: false, error: "Incorrect credentials" });
+    }
+  } catch (error) {
+    console.log(error);
+    return res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+//2-factor
 connectDatabase();
 app.listen(5000, () => {
   console.log("Server is running at port 5000");
