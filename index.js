@@ -26,7 +26,7 @@ const checkIfUserLoggedIn = (req, res, next) => {
     req.userid = userinfo.id;
     next();
   } else {
-    return res.status(400).json({ success: false, error: "UNAUTHORIZED" });
+    return res.status(401).json({ success: false, error: "UNAUTHORIZED" });
   }
 };
 app.get("/savedposts", checkIfUserLoggedIn, (req, res) => {
@@ -183,6 +183,33 @@ app.post("/mfaverify", async (req, res) => {
   }
 });
 
+app.get("/currentuser", checkIfUserLoggedIn, async (req, res) => {
+  try {
+    const userid = req.userid;
+    const userdetails = await USER_MODEL.findOne(
+      { _id: userid },
+      { email: 1, name: 1, dob: 1, phonenumber: 1, isUnder18: 1, createdAt: 1 }
+    );
+    if (userdetails) {
+      return res.json({ success: true, data: userdetails });
+    } else {
+      return res.status(400).json({ success: false, error: "User not found" });
+    }
+  } catch (error) {
+    console.log(error);
+    return res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/logout", (req, res) => {
+  try {
+    res.clearCookie("auth_tk");
+    return res.json({ success: true });
+  } catch (error) {
+    console.log(error);
+    return res.status(400).json({ success: false, error: error.message });
+  }
+});
 //2-factor
 connectDatabase();
 app.listen(5000, () => {

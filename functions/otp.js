@@ -1,6 +1,6 @@
-const TWILIO_SERVICE_ID = ""; //from the services->verify page
-const TWILIO_ACCOUNT_ID = ""; // account settings
-const TWILIO_AUTH_TOKEN = ""; // account settings below
+TWILIO_SERVICE_ID = ""; //from the services->verify page
+TWILIO_ACCOUNT_ID = ""; // account settings
+TWILIO_AUTH_TOKEN = ""; // account settings below
 
 const client = require("twilio")(TWILIO_ACCOUNT_ID, TWILIO_AUTH_TOKEN);
 
